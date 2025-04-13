@@ -20,7 +20,7 @@
         {% for product in products %}
             <div class="col-md-4 mb-4">
                 <div class="card">
-                    <img src="{{ url_for('static', filename=product[5].split('static/')[1]) if 'static/' in product[5] else product[5] }}" class="card-img-top" alt="{{ product[1] }}">
+                    <img src="{{ product[5] }}" class="card-img-top" alt="{{ product[1] }}">
                     <div class="card-body">
                         <h5 class="card-title">{{ product[1] }} - {{ product[2] }}</h5>
                         <p class="card-text">

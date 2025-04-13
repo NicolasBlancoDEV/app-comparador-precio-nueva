@@ -3,27 +3,31 @@ import sqlite3
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = '/opt/render/project/src/uploads'
 app.config['SECRET_KEY'] = 'supersecretkey'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Límite de 16 MB para las imágenes
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 DATABASE = '/opt/render/project/src/database.db'
 
+# Configurar Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET')
+)
+
 # Filtro para formatear precios
 @app.template_filter('format_price')
 def format_price(value):
     return "${:,.2f}".format(value).replace(',', 'X').replace('.', ',').replace('X', '.')
-
-# Crear carpetas necesarias
-def ensure_directories():
-    try:
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
-        print(f"Directorios creados: {app.config['UPLOAD_FOLDER']} y {os.path.dirname(DATABASE)}")
-    except Exception as e:
-        print(f"Error al crear directorios: {e}")
 
 # Crear base de datos
 def init_db():
@@ -36,7 +40,7 @@ def init_db():
                 brand TEXT NOT NULL,
                 price REAL NOT NULL,
                 place TEXT NOT NULL,
-                image_path TEXT NOT NULL,
+                image_url TEXT NOT NULL,  -- Cambiamos image_path a image_url
                 upload_date TEXT NOT NULL
             )''')
             conn.commit()
@@ -82,21 +86,21 @@ def upload():
             return redirect(url_for('upload'))
 
         if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             try:
-                file.save(file_path)
-                print(f"Imagen guardada en: {file_path}")
+                # Subir la imagen a Cloudinary
+                upload_result = cloudinary.uploader.upload(file, folder="comparador-precios")
+                image_url = upload_result['secure_url']
+                print(f"Imagen subida a Cloudinary: {image_url}")
             except Exception as e:
-                flash(f'Error al guardar la imagen: {e}')
-                print(f"Error al guardar la imagen: {e}")
+                flash(f'Error al subir la imagen a Cloudinary: {e}')
+                print(f"Error al subir la imagen: {e}")
                 return redirect(url_for('upload'))
 
             try:
                 with sqlite3.connect(DATABASE) as conn:
                     c = conn.cursor()
-                    c.execute('INSERT INTO products (name, brand, price, place, image_path, upload_date) VALUES (?, ?, ?, ?, ?, ?)',
-                              (name, brand, price, place, file_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                    c.execute('INSERT INTO products (name, brand, price, place, image_url, upload_date) VALUES (?, ?, ?, ?, ?, ?)',
+                              (name, brand, price, place, image_url, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                     conn.commit()
                 flash('Producto subido exitosamente!')
                 print("Producto guardado en la base de datos")
@@ -121,7 +125,7 @@ def products():
         try:
             with sqlite3.connect(DATABASE) as conn:
                 c = conn.cursor()
-                query = '''SELECT id, name, brand, price, place, image_path, upload_date 
+                query = '''SELECT id, name, brand, price, place, image_url, upload_date 
                           FROM products 
                           WHERE name LIKE ? OR brand LIKE ? OR place LIKE ?'''
                 c.execute(query, (f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'))
@@ -133,7 +137,7 @@ def products():
         try:
             with sqlite3.connect(DATABASE) as conn:
                 c = conn.cursor()
-                c.execute('SELECT id, name, brand, price, place, image_path, upload_date FROM products')
+                c.execute('SELECT id, name, brand, price, place, image_url, upload_date FROM products')
                 products = c.fetchall()
         except sqlite3.Error as e:
             flash(f'Error al cargar productos: {e}')
@@ -150,7 +154,7 @@ def compare():
         try:
             with sqlite3.connect(DATABASE) as conn:
                 c = conn.cursor()
-                query = 'SELECT id, name, brand, price, place, image_path, upload_date FROM products WHERE name LIKE ? AND brand LIKE ?'
+                query = 'SELECT id, name, brand, price, place, image_url, upload_date FROM products WHERE name LIKE ? AND brand LIKE ?'
                 c.execute(query, (f'%{name}%', f'%{brand}%'))
                 products = c.fetchall()
         except sqlite3.Error as e:
@@ -202,28 +206,26 @@ def delete(product_id):
     try:
         with sqlite3.connect(DATABASE) as conn:
             c = conn.cursor()
-            c.execute('SELECT image_path FROM products WHERE id = ?', (product_id,))
+            c.execute('SELECT image_url FROM products WHERE id = ?', (product_id,))
             product = c.fetchone()
             if product:
-                # Eliminar la imagen del sistema de archivos
-                image_path = product[0]
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-                    print(f"Imagen eliminada: {image_path}")
+                # Eliminar la imagen de Cloudinary
+                public_id = product[0].split('/')[-1].split('.')[0]  # Extraer el public_id de la URL
+                cloudinary.uploader.destroy(f"comparador-precios/{public_id}")
+                print(f"Imagen eliminada de Cloudinary: {public_id}")
                 # Eliminar el producto de la base de datos
                 c.execute('DELETE FROM products WHERE id = ?', (product_id,))
                 conn.commit()
                 flash('Producto eliminado exitosamente!')
             else:
                 flash('Producto no encontrado.')
-    except (sqlite3.Error, OSError) as e:
+    except (sqlite3.Error, Exception) as e:
         flash(f'Error al eliminar el producto: {e}')
         print(f"Error al eliminar el producto: {e}")
     return redirect(url_for('products'))
 
 # Inicializar la app
 with app.app_context():
-    ensure_directories()
     init_db()
 
 if __name__ == '__main__':
