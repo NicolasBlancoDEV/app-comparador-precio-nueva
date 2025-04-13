@@ -2,10 +2,38 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 import sqlite3
 import os
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
 DATABASE = '/opt/render/project/src/database.db'
+
+# Configurar Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Modelo de usuario para Flask-Login
+class User(UserMixin):
+    def __init__(self, id, username, email):
+        self.id = id
+        self.username = username
+        self.email = email
+
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('SELECT id, username, email FROM users WHERE id = ?', (user_id,))
+            user = c.fetchone()
+            if user:
+                return User(user[0], user[1], user[2])
+            return None
+    except sqlite3.Error as e:
+        print(f"Error al cargar usuario: {e}")
+        return None
 
 # Filtro para formatear precios
 @app.template_filter('format_price')
@@ -21,11 +49,12 @@ def get_db_connection():
         print(f"Error al conectar a la base de datos: {e}")
         raise e
 
-# Crear la tabla de productos y chat
+# Crear las tablas
 def init_db():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
+            # Tabla de productos
             c.execute('''CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -34,12 +63,20 @@ def init_db():
                 place TEXT NOT NULL,
                 upload_date TEXT NOT NULL
             )''')
-            # Tabla para mensajes del chat
+            # Tabla de usuarios
+            c.execute('''CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE
+            )''')
+            # Tabla de mensajes del chat (modificada para usar user_id)
             c.execute('''CREATE TABLE IF NOT EXISTS chat_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
                 message TEXT NOT NULL,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
             conn.commit()
         print("Base de datos inicializada correctamente")
@@ -50,6 +87,75 @@ def init_db():
 @app.route('/manifest.json')
 def serve_manifest():
     return send_from_directory('static', 'manifest.json')
+
+# Registro de usuarios
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        email = request.form['email']
+
+        if not (username and password and email):
+            flash('Por favor, completa todos los campos.')
+            return redirect(url_for('register'))
+
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute('SELECT id FROM users WHERE username = ? OR email = ?', (username, email))
+                existing_user = c.fetchone()
+                if existing_user:
+                    flash('El nombre de usuario o email ya está registrado.')
+                    return redirect(url_for('register'))
+
+                hashed_password = generate_password_hash(password)
+                c.execute('INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
+                          (username, hashed_password, email))
+                conn.commit()
+            flash('Registro exitoso. Por favor, inicia sesión.')
+            return redirect(url_for('login'))
+        except sqlite3.Error as e:
+            flash(f'Error al registrarte: {e}')
+            print(f"Error al registrar usuario: {e}")
+            return redirect(url_for('register'))
+
+    return render_template('register.html')
+
+# Inicio de sesión
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute('SELECT id, username, password, email FROM users WHERE username = ?', (username,))
+                user = c.fetchone()
+                if user and check_password_hash(user[2], password):
+                    user_obj = User(user[0], user[1], user[3])
+                    login_user(user_obj)
+                    flash('Inicio de sesión exitoso.')
+                    return redirect(url_for('index'))
+                else:
+                    flash('Nombre de usuario o contraseña incorrectos.')
+                    return redirect(url_for('login'))
+        except sqlite3.Error as e:
+            flash(f'Error al iniciar sesión: {e}')
+            print(f"Error al iniciar sesión: {e}")
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+# Cierre de sesión
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Has cerrado sesión.')
+    return redirect(url_for('index'))
 
 # Página principal (productos ordenados por fecha)
 @app.route('/')
@@ -78,7 +184,6 @@ def upload():
             flash('Por favor, completa todos los campos.')
             return redirect(url_for('upload'))
 
-        # Validar y convertir el precio
         try:
             price = float(price)
             if price < 0:
@@ -133,22 +238,22 @@ def filter_products():
             print(f"Error al cargar productos: {e}")
     return render_template('filter.html', products=products, search_query=search_query)
 
-# Chat universal
+# Chat universal (restringido a usuarios autenticados)
 @app.route('/chat', methods=['GET', 'POST'])
+@login_required
 def chat():
     if request.method == 'POST':
-        username = request.form['username']
         message = request.form['message']
 
-        if not (username and message):
-            flash('Por favor, completa todos los campos.')
+        if not message:
+            flash('Por favor, escribe un mensaje.')
             return redirect(url_for('chat'))
 
         try:
             with get_db_connection() as conn:
                 c = conn.cursor()
-                c.execute('INSERT INTO chat_messages (username, message, timestamp) VALUES (?, ?, ?)',
-                          (username, message, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                c.execute('INSERT INTO chat_messages (user_id, message, timestamp) VALUES (?, ?, ?)',
+                          (current_user.id, message, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                 conn.commit()
             flash('Mensaje enviado!')
             return redirect(url_for('chat'))
@@ -160,7 +265,10 @@ def chat():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute('SELECT username, message, timestamp FROM chat_messages ORDER BY timestamp DESC LIMIT 50')
+            c.execute('''SELECT u.username, cm.message, cm.timestamp 
+                         FROM chat_messages cm 
+                         JOIN users u ON cm.user_id = u.id 
+                         ORDER BY cm.timestamp DESC LIMIT 50''')
             messages = c.fetchall()
     except sqlite3.Error as e:
         flash(f'Error al cargar los mensajes: {e}')

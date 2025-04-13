@@ -3,25 +3,25 @@
 {% block content %}
 <h2>Chat Universal</h2>
 
-<!-- Formulario para enviar mensajes -->
-<form method="POST" class="mt-4 mb-4">
-    <div class="mb-3">
-        <label for="username" class="form-label">Nombre de usuario</label>
-        <input type="text" class="form-control" id="username" name="username" required placeholder="Ej: Juan123">
-    </div>
-    <div class="mb-3">
-        <label for="message" class="form-label">Mensaje</label>
-        <textarea class="form-control" id="message" name="message" required placeholder="Escribe tu mensaje..."></textarea>
-    </div>
-    <button type="submit" class="btn btn-primary">Enviar</button>
-</form>
+{% if current_user.is_authenticated %}
+    <!-- Formulario para enviar mensajes -->
+    <form method="POST" class="mt-4 mb-4">
+        <div class="mb-3">
+            <label for="message" class="form-label">Mensaje</label>
+            <textarea class="form-control" id="message" name="message" required placeholder="Escribe tu mensaje..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Enviar</button>
+    </form>
+{% else %}
+    <p>Por favor, <a href="{{ url_for('login') }}">inicia sesión</a> para participar en el chat.</p>
+{% endif %}
 
 <!-- Mostrar mensajes -->
 {% if messages %}
     <h3>Mensajes recientes</h3>
-    <div class="chat-messages" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+    <div class="chat-messages">
         {% for message in messages %}
-            <div class="message mb-2">
+            <div class="message">
                 <strong>{{ message[0] }}</strong> <small>({{ message[2] }})</small><br>
                 {{ message[1] }}
             </div>
