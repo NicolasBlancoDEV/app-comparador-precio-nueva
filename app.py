@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response, session
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response, session, send_file
 import sqlite3
 import os
 from datetime import datetime, timedelta
@@ -11,11 +11,13 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
 
 # Definir la ruta de la base de datos dinámicamente
-if os.getenv('RENDER'):  # Render establece esta variable de entorno
+if os.getenv('RENDER'):
     DATABASE = '/opt/render/project/src/database.db'
 else:
-    # Ruta relativa para el entorno local (en el mismo directorio que app.py)
     DATABASE = os.path.join(os.path.dirname(__file__), 'database.db')
+
+# Definir el usuario administrador desde una variable de entorno
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'tu_usuario')  # Por defecto, "tu_usuario" si no está definida
 
 # Configurar Flask-Login
 login_manager = LoginManager()
@@ -452,6 +454,62 @@ def clear_cart():
     flash('Carrito vaciado.')
     return redirect(url_for('cart'))
 
+# Descargar la base de datos
+@app.route('/download_db')
+@login_required
+def download_db():
+    # Restringir el acceso solo al usuario administrador
+    if current_user.username != ADMIN_USERNAME:
+        flash('No tienes permiso para descargar la base de datos.')
+        return redirect(url_for('index'))
+
+    try:
+        if not os.path.exists(DATABASE):
+            flash('La base de datos no existe.')
+            return redirect(url_for('index'))
+
+        return send_file(DATABASE, as_attachment=True, download_name='database.db')
+    except Exception as e:
+        flash(f'Error al descargar la base de datos: {e}')
+        print(f"Error al descargar la base de datos: {e}")
+        return redirect(url_for('index'))
+
+# Subir una nueva base de datos
+@app.route('/upload_db', methods=['GET', 'POST'])
+@login_required
+def upload_db():
+    # Restringir el acceso solo al usuario administrador
+    if current_user.username != ADMIN_USERNAME:
+        flash('No tienes permiso para subir una base de datos.')
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        if 'db_file' not in request.files:
+            flash('No se seleccionó ningún archivo.')
+            return redirect(url_for('upload_db'))
+
+        db_file = request.files['db_file']
+        if db_file.filename == '':
+            flash('No se seleccionó ningún archivo.')
+            return redirect(url_for('upload_db'))
+
+        if not db_file.filename.endswith('.db'):
+            flash('El archivo debe ser un archivo .db')
+            return redirect(url_for('upload_db'))
+
+        try:
+            conn = sqlite3.connect(DATABASE)
+            conn.close()
+
+            db_file.save(DATABASE)
+            flash('Base de datos subida exitosamente.')
+            return redirect(url_for('index'))
+        except Exception as e:
+            flash(f'Error al subir la base de datos: {e}')
+            print(f"Error al subir la base de datos: {e}")
+            return redirect(url_for('upload_db'))
+
+    return render_template('upload_db.html')
 # Inicializar la app
 with app.app_context():
     init_db()
