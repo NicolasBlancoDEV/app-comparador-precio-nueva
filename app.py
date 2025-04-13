@@ -8,7 +8,16 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = '/opt/render/project/src/uploads'
 app.config['SECRET_KEY'] = 'supersecretkey'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-DATABASE = '/opt/render/project/src/database.db'  # Ruta persistente en Render
+DATABASE = '/opt/render/project/src/database.db'
+
+# Crear carpetas necesarias
+def ensure_directories():
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
+        print(f"Directorios creados: {app.config['UPLOAD_FOLDER']} y {os.path.dirname(DATABASE)}")
+    except Exception as e:
+        print(f"Error al crear directorios: {e}")
 
 # Crear base de datos
 def init_db():
@@ -25,6 +34,7 @@ def init_db():
                 upload_date TEXT NOT NULL
             )''')
             conn.commit()
+        print("Base de datos inicializada correctamente")
     except sqlite3.Error as e:
         print(f"Error al crear la base de datos: {e}")
 
@@ -59,7 +69,13 @@ def upload():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
+            try:
+                file.save(file_path)
+                print(f"Imagen guardada en: {file_path}")
+            except Exception as e:
+                flash(f'Error al guardar la imagen: {e}')
+                print(f"Error al guardar la imagen: {e}")
+                return redirect(url_for('upload'))
 
             try:
                 with sqlite3.connect(DATABASE) as conn:
@@ -68,9 +84,11 @@ def upload():
                               (name, brand, float(price), place, file_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                     conn.commit()
                 flash('Producto subido exitosamente!')
+                print("Producto guardado en la base de datos")
                 return redirect(url_for('upload'))
             except sqlite3.Error as e:
                 flash(f'Error al guardar el producto: {e}')
+                print(f"Error al guardar el producto: {e}")
                 return redirect(url_for('upload'))
         else:
             flash('Archivo no permitido. Usa PNG, JPG o JPEG.')
@@ -93,13 +111,14 @@ def compare():
                 products = c.fetchall()
         except sqlite3.Error as e:
             flash(f'Error al buscar productos: {e}')
+            print(f"Error al buscar productos: {e}")
     return render_template('compare.html', products=products)
 
-# Inicializar la base de datos al arrancar
+# Inicializar la app
 with app.app_context():
+    ensure_directories()
     init_db()
 
 if __name__ == '__main__':
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
