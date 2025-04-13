@@ -456,13 +456,6 @@ def clear_cart():
 with app.app_context():
     init_db()
 
-# Eliminar la tabla tickets (código temporal)
-with get_db_connection() as conn:
-    c = conn.cursor()
-    c.execute('DROP TABLE IF EXISTS tickets')
-    conn.commit()
-    print("Tabla 'tickets' eliminada correctamente")
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
