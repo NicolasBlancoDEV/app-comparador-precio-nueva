@@ -5,14 +5,15 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = '/opt/render/project/src/uploads'
 app.config['SECRET_KEY'] = 'supersecretkey'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+DATABASE = '/opt/render/project/src/database.db'  # Ruta persistente en Render
 
 # Crear base de datos
 def init_db():
     try:
-        with sqlite3.connect('database.db') as conn:
+        with sqlite3.connect(DATABASE) as conn:
             c = conn.cursor()
             c.execute('''CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +62,7 @@ def upload():
             file.save(file_path)
 
             try:
-                with sqlite3.connect('database.db') as conn:
+                with sqlite3.connect(DATABASE) as conn:
                     c = conn.cursor()
                     c.execute('INSERT INTO products (name, brand, price, place, image_path, upload_date) VALUES (?, ?, ?, ?, ?, ?)',
                               (name, brand, float(price), place, file_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
@@ -85,7 +86,7 @@ def compare():
         name = request.form['name']
         brand = request.form['brand']
         try:
-            with sqlite3.connect('database.db') as conn:
+            with sqlite3.connect(DATABASE) as conn:
                 c = conn.cursor()
                 query = 'SELECT name, brand, price, place, image_path, upload_date FROM products WHERE name LIKE ? AND brand LIKE ?'
                 c.execute(query, (f'%{name}%', f'%{brand}%'))
