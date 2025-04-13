@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Editar Precio</h2>
+<p>Producto: {{ product[1] }} - {{ product[2] }}</p>
+<form method="POST" onsubmit="formatPrice()">
+    <div class="mb-3">
+        <label for="price" class="form-label">Nuevo Precio (en pesos argentinos)</label>
+        <input type="text" class="form-control" id="price" name="price" value="{{ product[3] }}" required placeholder="Ej: 1500 o 1,500">
+    </div>
+    <button type="submit" class="btn btn-primary">Actualizar</button>
+    <a href="{{ url_for('products') }}" class="btn btn-secondary">Cancelar</a>
+</form>
+
+<script>
+function formatPrice() {
+    let priceInput = document.getElementById('price');
+    let price = priceInput.value;
+    price = price.replace(',', '.').replace(/[^\d.]/g, '');
+    price = parseFloat(price).toFixed(2);
+    if (isNaN(price)) {
+        alert('Por favor, ingresa un precio válido.');
+        return false;
+    }
+    priceInput.value = price;
+    return true;
+}
+</script>
+{% endblock %}

@@ -1,21 +1,17 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>Comparar Precios</h2>
-<form method="POST" class="mt-4">
-    <div class="mb-3">
-        <label for="name" class="form-label">Nombre del Producto</label>
-        <input type="text" class="form-control" id="name" name="name" placeholder="Ej: Mayonesa">
+<h2>Todos los Productos</h2>
+
+<!-- Formulario de búsqueda -->
+<form method="POST" class="mt-4 mb-4">
+    <div class="input-group">
+        <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar..." value="{{ search_query }}">
+        <button type="submit" class="btn btn-primary">Buscar</button>
     </div>
-    <div class="mb-3">
-        <label for="brand" class="form-label">Marca</label>
-        <input type="text" class="form-control" id="brand" name="brand" placeholder="Ej: Hellmann's">
-    </div>
-    <button type="submit" class="btn btn-primary">Buscar</button>
 </form>
 
 {% if products %}
-    <h3 class="mt-5">Resultados</h3>
     <div class="row">
         {% for product in products %}
             <div class="col-md-4 mb-4">
@@ -28,10 +24,16 @@
                             Lugar: {{ product[4] }}<br>
                             Fecha: {{ product[6] }}
                         </p>
+                        <a href="{{ url_for('edit', product_id=product[0]) }}" class="btn btn-sm btn-warning">Editar Precio</a>
+                        <form action="{{ url_for('delete', product_id=product[0]) }}" method="POST" style="display:inline;" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este producto?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                        </form>
                     </div>
                 </div>
             </div>
         {% endfor %}
     </div>
+{% else %}
+    <p>No se encontraron productos.</p>
 {% endif %}
 {% endblock %}
