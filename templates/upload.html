@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>Subir Producto</h2>
-<form method="POST" enctype="multipart/form-data" class="mt-4">
+<form method="POST" action="/upload" enctype="multipart/form-data" class="mt-4">
     <div class="mb-3">
         <label for="name" class="form-label">Nombre del Producto</label>
         <input type="text" class="form-control" id="name" name="name" required>
