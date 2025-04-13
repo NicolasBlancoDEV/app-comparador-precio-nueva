@@ -1,19 +1,32 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import secrets
+import pytz
+import cloudinary
+import cloudinary.uploader
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
 DATABASE = '/opt/render/project/src/database.db'
 
+# Configurar Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET')
+)
+
 # Configurar Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Configurar la zona horaria de Argentina (UTC-3)
+argentina_tz = pytz.timezone('America/Argentina/Buenos_Aires')
 
 # Modelo de usuario para Flask-Login
 class User(UserMixin):
@@ -50,6 +63,19 @@ def get_db_connection():
         print(f"Error al conectar a la base de datos: {e}")
         raise e
 
+# Obtener la fecha actual en la zona horaria de Argentina
+def get_current_time():
+    return datetime.now(argentina_tz).strftime('%Y-%m-%d %H:%M:%S')
+
+# Convertir timestamp a la zona horaria de Argentina
+def to_argentina_time(timestamp):
+    try:
+        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+        dt = argentina_tz.localize(dt)
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return timestamp
+
 # Crear las tablas
 def init_db():
     try:
@@ -85,6 +111,15 @@ def init_db():
                 user_id INTEGER NOT NULL,
                 token TEXT NOT NULL,
                 expiry TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )''')
+            # Tabla para tickets
+            c.execute('''CREATE TABLE IF NOT EXISTS tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                image_url TEXT NOT NULL,
+                place TEXT NOT NULL,
+                upload_date TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
             conn.commit()
@@ -141,7 +176,7 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        remember = request.form.get('remember') == 'on'  # Checkbox para recordar
+        remember = request.form.get('remember') == 'on'
 
         try:
             with get_db_connection() as conn:
@@ -152,15 +187,11 @@ def login():
                     user_obj = User(user[0], user[1], user[3])
                     login_user(user_obj)
 
-                    # Crear respuesta
                     response = make_response(redirect(url_for('index')))
-                    
-                    # Si el usuario marcó "recordar", guardar en cookies
                     if remember:
-                        response.set_cookie('username', username, max_age=30*24*60*60)  # 30 días
-                        response.set_cookie('password_hash', user[2], max_age=30*24*60*60)  # Guardamos el hash, no la contraseña
+                        response.set_cookie('username', username, max_age=30*24*60*60)
+                        response.set_cookie('password_hash', user[2], max_age=30*24*60*60)
                     else:
-                        # Si no marcó "recordar", eliminar cookies
                         response.set_cookie('username', '', expires=0)
                         response.set_cookie('password_hash', '', expires=0)
 
@@ -181,7 +212,6 @@ def login():
 @login_required
 def logout():
     logout_user()
-    # Crear respuesta para eliminar cookies
     response = make_response(redirect(url_for('index')))
     response.set_cookie('username', '', expires=0)
     response.set_cookie('password_hash', '', expires=0)
@@ -196,6 +226,8 @@ def index():
             c = conn.cursor()
             c.execute('SELECT id, name, brand, price, place, upload_date FROM products ORDER BY upload_date DESC')
             products = c.fetchall()
+            # Convertir fechas a la zona horaria de Argentina
+            products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
     except sqlite3.Error as e:
         flash(f'Error al cargar productos: {e}')
         print(f"Error al cargar productos: {e}")
@@ -227,7 +259,7 @@ def upload():
             with get_db_connection() as conn:
                 c = conn.cursor()
                 c.execute('INSERT INTO products (name, brand, price, place, upload_date) VALUES (?, ?, ?, ?, ?)',
-                          (name, brand, price, place, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                          (name, brand, price, place, get_current_time()))
                 conn.commit()
             flash('Producto subido exitosamente!')
             print("Producto guardado en la base de datos")
@@ -255,6 +287,7 @@ def filter_products():
                           ORDER BY upload_date DESC'''
                 c.execute(query, (f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'))
                 products = c.fetchall()
+                products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
         except sqlite3.Error as e:
             flash(f'Error al buscar productos: {e}')
             print(f"Error al buscar productos: {e}")
@@ -264,6 +297,7 @@ def filter_products():
                 c = conn.cursor()
                 c.execute('SELECT id, name, brand, price, place, upload_date FROM products ORDER BY upload_date DESC')
                 products = c.fetchall()
+                products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
         except sqlite3.Error as e:
             flash(f'Error al cargar productos: {e}')
             print(f"Error al cargar productos: {e}")
@@ -284,7 +318,7 @@ def chat():
             with get_db_connection() as conn:
                 c = conn.cursor()
                 c.execute('INSERT INTO chat_messages (user_id, message, timestamp) VALUES (?, ?, ?)',
-                          (current_user.id, message, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                          (current_user.id, message, get_current_time()))
                 conn.commit()
             flash('Mensaje enviado!')
             return redirect(url_for('chat'))
@@ -301,6 +335,7 @@ def chat():
                          JOIN users u ON cm.user_id = u.id 
                          ORDER BY cm.timestamp DESC LIMIT 50''')
             messages = c.fetchall()
+            messages = [(m[0], m[1], to_argentina_time(m[2])) for m in messages]
     except sqlite3.Error as e:
         flash(f'Error al cargar los mensajes: {e}')
         print(f"Error al cargar los mensajes: {e}")
@@ -319,15 +354,12 @@ def forgot_password():
                 c.execute('SELECT id, username FROM users WHERE email = ?', (email,))
                 user = c.fetchone()
                 if user:
-                    # Generar un token de recuperación
                     token = secrets.token_urlsafe(32)
-                    expiry = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')  # Token válido por 1 hora
+                    expiry = (datetime.now(argentina_tz) + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
                     c.execute('INSERT INTO password_reset_tokens (user_id, token, expiry) VALUES (?, ?, ?)',
                               (user[0], token, expiry))
                     conn.commit()
 
-                    # En un entorno real, enviarías un correo aquí con el enlace
-                    # Por ahora, mostramos el enlace directamente (para desarrollo)
                     reset_link = url_for('reset_password', token=token, _external=True)
                     flash(f'Enlace de recuperación (simulado): {reset_link}')
                 else:
@@ -352,8 +384,9 @@ def reset_password(token):
                 flash('El enlace de recuperación es inválido.')
                 return redirect(url_for('login'))
 
-            expiry = datetime.fromtimestamp(token_data[1])
-            if datetime.now() > expiry:
+            expiry = datetime.strptime(token_data[1], '%Y-%m-%d %H:%M:%S')
+            expiry = argentina_tz.localize(expiry)
+            if datetime.now(argentina_tz) > expiry:
                 flash('El enlace de recuperación ha expirado.')
                 c.execute('DELETE FROM password_reset_tokens WHERE token = ?', (token,))
                 conn.commit()
@@ -377,6 +410,55 @@ def reset_password(token):
         flash(f'Error al procesar el restablecimiento: {e}')
         print(f"Error al procesar el restablecimiento: {e}")
         return redirect(url_for('login'))
+
+# Subir ticket
+@app.route('/upload_ticket', methods=['GET', 'POST'])
+@login_required
+def upload_ticket():
+    if request.method == 'POST':
+        place = request.form['place']
+        image = request.files['image']
+
+        if not (place and image):
+            flash('Por favor, completa todos los campos.')
+            return redirect(url_for('upload_ticket'))
+
+        try:
+            # Subir imagen a Cloudinary
+            upload_result = cloudinary.uploader.upload(image, folder="tickets")
+            image_url = upload_result['secure_url']
+        except Exception as e:
+            flash(f'Error al subir la imagen: {e}')
+            print(f"Error al subir la imagen: {e}")
+            return redirect(url_for('upload_ticket'))
+
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute('INSERT INTO tickets (user_id, image_url, place, upload_date) VALUES (?, ?, ?, ?)',
+                          (current_user.id, image_url, place, get_current_time()))
+                conn.commit()
+            flash('Ticket subido exitosamente!')
+            return redirect(url_for('upload_ticket'))
+        except sqlite3.Error as e:
+            flash(f'Error al guardar el ticket: {e}')
+            print(f"Error al guardar el ticket: {e}")
+            return redirect(url_for('upload_ticket'))
+
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('''SELECT u.username, t.image_url, t.place, t.upload_date 
+                         FROM tickets t 
+                         JOIN users u ON t.user_id = u.id 
+                         ORDER BY t.upload_date DESC''')
+            tickets = c.fetchall()
+            tickets = [(t[0], t[1], t[2], to_argentina_time(t[3])) for t in tickets]
+    except sqlite3.Error as e:
+        flash(f'Error al cargar los tickets: {e}')
+        print(f"Error al cargar los tickets: {e}")
+        tickets = []
+    return render_template('upload_ticket.html', tickets=tickets)
 
 # Inicializar la app
 with app.app_context():

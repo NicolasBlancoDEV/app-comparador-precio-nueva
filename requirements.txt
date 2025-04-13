@@ -2,3 +2,5 @@ flask
 gunicorn
 Werkzeug
 Flask-Login
+pytz
+cloudinary
