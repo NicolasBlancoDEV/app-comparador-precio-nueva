@@ -6,19 +6,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import secrets
 import pytz
-import cloudinary
-import cloudinary.uploader
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
-DATABASE = '/opt/render/project/src/database.db'
 
-# Configurar Cloudinary
-cloudinary.config(
-    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.getenv('CLOUDINARY_API_KEY'),
-    api_secret=os.getenv('CLOUDINARY_API_SECRET')
-)
+# Definir la ruta de la base de datos dinámicamente
+if os.getenv('RENDER'):  # Render establece esta variable de entorno
+    DATABASE = '/opt/render/project/src/database.db'
+else:
+    # Ruta relativa para el entorno local (en el mismo directorio que app.py)
+    DATABASE = os.path.join(os.path.dirname(__file__), 'database.db')
 
 # Configurar Flask-Login
 login_manager = LoginManager()
@@ -27,6 +24,8 @@ login_manager.login_view = 'login'
 
 # Configurar la zona horaria de Argentina (UTC-3)
 argentina_tz = pytz.timezone('America/Argentina/Buenos_Aires')
+
+# Resto del código sigue igual...
 
 # Modelo de usuario para Flask-Login
 class User(UserMixin):
@@ -57,6 +56,10 @@ def format_price(value):
 # Conectar a la base de datos SQLite
 def get_db_connection():
     try:
+        # Asegurarse de que el directorio exista (por si DATABASE incluye subdirectorios)
+        db_dir = os.path.dirname(DATABASE)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir)
         conn = sqlite3.connect(DATABASE)
         return conn
     except sqlite3.Error as e:
@@ -111,15 +114,6 @@ def init_db():
                 user_id INTEGER NOT NULL,
                 token TEXT NOT NULL,
                 expiry TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )''')
-            # Tabla para tickets
-            c.execute('''CREATE TABLE IF NOT EXISTS tickets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                image_url TEXT NOT NULL,
-                place TEXT NOT NULL,
-                upload_date TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
             conn.commit()
@@ -411,55 +405,6 @@ def reset_password(token):
         print(f"Error al procesar el restablecimiento: {e}")
         return redirect(url_for('login'))
 
-# Subir ticket
-@app.route('/upload_ticket', methods=['GET', 'POST'])
-@login_required
-def upload_ticket():
-    if request.method == 'POST':
-        place = request.form['place']
-        image = request.files['image']
-
-        if not (place and image):
-            flash('Por favor, completa todos los campos.')
-            return redirect(url_for('upload_ticket'))
-
-        try:
-            # Subir imagen a Cloudinary
-            upload_result = cloudinary.uploader.upload(image, folder="tickets")
-            image_url = upload_result['secure_url']
-        except Exception as e:
-            flash(f'Error al subir la imagen: {e}')
-            print(f"Error al subir la imagen: {e}")
-            return redirect(url_for('upload_ticket'))
-
-        try:
-            with get_db_connection() as conn:
-                c = conn.cursor()
-                c.execute('INSERT INTO tickets (user_id, image_url, place, upload_date) VALUES (?, ?, ?, ?)',
-                          (current_user.id, image_url, place, get_current_time()))
-                conn.commit()
-            flash('Ticket subido exitosamente!')
-            return redirect(url_for('upload_ticket'))
-        except sqlite3.Error as e:
-            flash(f'Error al guardar el ticket: {e}')
-            print(f"Error al guardar el ticket: {e}")
-            return redirect(url_for('upload_ticket'))
-
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute('''SELECT u.username, t.image_url, t.place, t.upload_date 
-                         FROM tickets t 
-                         JOIN users u ON t.user_id = u.id 
-                         ORDER BY t.upload_date DESC''')
-            tickets = c.fetchall()
-            tickets = [(t[0], t[1], t[2], to_argentina_time(t[3])) for t in tickets]
-    except sqlite3.Error as e:
-        flash(f'Error al cargar los tickets: {e}')
-        print(f"Error al cargar los tickets: {e}")
-        tickets = []
-    return render_template('upload_ticket.html', tickets=tickets)
-
 # Agregar producto al carrito
 @app.route('/add_to_cart/<int:product_id>', methods=['POST'])
 def add_to_cart(product_id):
@@ -510,6 +455,13 @@ def clear_cart():
 # Inicializar la app
 with app.app_context():
     init_db()
+
+# Eliminar la tabla tickets (código temporal)
+with get_db_connection() as conn:
+    c = conn.cursor()
+    c.execute('DROP TABLE IF EXISTS tickets')
+    conn.commit()
+    print("Tabla 'tickets' eliminada correctamente")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
