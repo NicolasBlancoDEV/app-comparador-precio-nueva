@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response, session
 import sqlite3
 import os
 from datetime import datetime, timedelta
@@ -169,7 +169,6 @@ def register():
 # Inicio de sesión
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Obtener datos de las cookies si existen
     saved_username = request.cookies.get('username', '')
     saved_password_hash = request.cookies.get('password_hash', '')
 
@@ -212,6 +211,8 @@ def login():
 @login_required
 def logout():
     logout_user()
+    # Limpiar el carrito al cerrar sesión
+    session.pop('cart', None)
     response = make_response(redirect(url_for('index')))
     response.set_cookie('username', '', expires=0)
     response.set_cookie('password_hash', '', expires=0)
@@ -226,7 +227,6 @@ def index():
             c = conn.cursor()
             c.execute('SELECT id, name, brand, price, place, upload_date FROM products ORDER BY upload_date DESC')
             products = c.fetchall()
-            # Convertir fechas a la zona horaria de Argentina
             products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
     except sqlite3.Error as e:
         flash(f'Error al cargar productos: {e}')
@@ -459,6 +459,53 @@ def upload_ticket():
         print(f"Error al cargar los tickets: {e}")
         tickets = []
     return render_template('upload_ticket.html', tickets=tickets)
+
+# Agregar producto al carrito
+@app.route('/add_to_cart/<int:product_id>', methods=['POST'])
+def add_to_cart(product_id):
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('SELECT id, name, brand, price, place FROM products WHERE id = ?', (product_id,))
+            product = c.fetchone()
+            if not product:
+                flash('Producto no encontrado.')
+                return redirect(request.referrer or url_for('index'))
+
+            # Inicializar el carrito en la sesión si no existe
+            if 'cart' not in session:
+                session['cart'] = []
+
+            # Agregar el producto al carrito
+            session['cart'].append({
+                'id': product[0],
+                'name': product[1],
+                'brand': product[2],
+                'price': product[3],
+                'place': product[4]
+            })
+            session.modified = True  # Marcar la sesión como modificada
+
+            flash(f'{product[1]} ({product[2]}) añadido al carrito.')
+            return redirect(request.referrer or url_for('index'))
+    except sqlite3.Error as e:
+        flash(f'Error al agregar al carrito: {e}')
+        print(f"Error al agregar al carrito: {e}")
+        return redirect(request.referrer or url_for('index'))
+
+# Ver el carrito
+@app.route('/cart')
+def cart():
+    cart_items = session.get('cart', [])
+    total_price = sum(item['price'] for item in cart_items) if cart_items else 0
+    return render_template('cart.html', cart_items=cart_items, total_price=total_price)
+
+# Vaciar el carrito
+@app.route('/clear_cart', methods=['POST'])
+def clear_cart():
+    session.pop('cart', None)
+    flash('Carrito vaciado.')
+    return redirect(url_for('cart'))
 
 # Inicializar la app
 with app.app_context():

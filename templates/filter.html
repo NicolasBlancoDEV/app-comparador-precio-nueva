@@ -2,27 +2,27 @@
 
 {% block content %}
 <h2>Filtrar Productos</h2>
-
-<!-- Formulario de búsqueda -->
-<form method="POST" class="mt-4 mb-4">
+<form method="POST" class="mb-4">
     <div class="input-group">
-        <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar..." value="{{ search_query }}">
+        <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar" value="{{ search_query }}">
         <button type="submit" class="btn btn-primary">Buscar</button>
     </div>
 </form>
-
 {% if products %}
     <div class="row">
         {% for product in products %}
             <div class="col-md-4 mb-4">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">{{ product[1] }} - {{ product[2] }}</h5>
+                        <h5 class="card-title">{{ product[1] }} ({{ product[2] }})</h5>
                         <p class="card-text">
-                            <strong>Precio:</strong> {{ product[3]|format_price }}<br>
+                            <strong>Precio:</strong> {{ product[3] | format_price }}<br>
                             <strong>Lugar:</strong> {{ product[4] }}<br>
                             <strong>Fecha:</strong> {{ product[5] }}
                         </p>
+                        <form method="POST" action="{{ url_for('add_to_cart', product_id=product[0]) }}">
+                            <button type="submit" class="btn btn-primary btn-sm">Agregar al carrito</button>
+                        </form>
                     </div>
                 </div>
             </div>

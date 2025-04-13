@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Carrito de Compras</h2>
+
+{% if cart_items %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Marca</th>
+                <th>Precio</th>
+                <th>Lugar</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in cart_items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.brand }}</td>
+                    <td>{{ item.price | format_price }}</td>
+                    <td>{{ item.place }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3"><strong>Total:</strong></td>
+                <td>{{ total_price | format_price }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    <form method="POST" action="{{ url_for('clear_cart') }}">
+        <button type="submit" class="btn btn-danger">Vaciar Carrito</button>
+    </form>
+{% else %}
+    <p>Tu carrito está vacío. ¡Agrega productos desde la página principal o de filtrado!</p>
+{% endif %}
+{% endblock %}

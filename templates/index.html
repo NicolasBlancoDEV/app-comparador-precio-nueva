@@ -1,26 +1,28 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>Productos Recientes</h2>
-
+<h2>Productos</h2>
 {% if products %}
     <div class="row">
         {% for product in products %}
             <div class="col-md-4 mb-4">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">{{ product[1] }} - {{ product[2] }}</h5>
+                        <h5 class="card-title">{{ product[1] }} ({{ product[2] }})</h5>
                         <p class="card-text">
-                            <strong>Precio:</strong> {{ product[3]|format_price }}<br>
+                            <strong>Precio:</strong> {{ product[3] | format_price }}<br>
                             <strong>Lugar:</strong> {{ product[4] }}<br>
                             <strong>Fecha:</strong> {{ product[5] }}
                         </p>
+                        <form method="POST" action="{{ url_for('add_to_cart', product_id=product[0]) }}">
+                            <button type="submit" class="btn btn-primary btn-sm">Agregar al carrito</button>
+                        </form>
                     </div>
                 </div>
             </div>
         {% endfor %}
     </div>
 {% else %}
-    <p>No hay productos aún. ¡Sube el primero!</p>
+    <p>No hay productos aún. ¡Sé el primero en subir uno!</p>
 {% endif %}
 {% endblock %}
