@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>Subir Ticket</h2>
+<h2>Tickets</h2>
 
 {% if current_user.is_authenticated %}
     <!-- Formulario para subir ticket -->
+    <h3>Subir un Ticket</h3>
     <form method="POST" enctype="multipart/form-data" class="mt-4">
         <div class="mb-3">
             <label for="place" class="form-label">Lugar (Ej: Supermercado X)</label>
@@ -27,7 +28,9 @@
         {% for ticket in tickets %}
             <div class="col-md-4 mb-4">
                 <div class="card">
-                    <img src="{{ ticket[1] }}" class="card-img-top" alt="Ticket">
+                    <a href="{{ ticket[1] }}" target="_blank">
+                        <img src="{{ ticket[1] }}" class="card-img-top" alt="Ticket">
+                    </a>
                     <div class="card-body">
                         <p class="card-text">
                             <strong>Subido por:</strong> {{ ticket[0] }}<br>
