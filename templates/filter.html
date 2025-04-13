@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Filtrar Productos</h2>
+
+<!-- Formulario de búsqueda -->
+<form method="POST" class="mt-4 mb-4">
+    <div class="input-group">
+        <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar..." value="{{ search_query }}">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+    </div>
+</form>
+
+{% if products %}
+    <div class="row">
+        {% for product in products %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product[1] }} - {{ product[2] }}</h5>
+                        <p class="card-text">
+                            Precio: {{ product[3]|format_price }}<br>
+                            Lugar: {{ product[4] }}<br>
+                            Fecha: {{ product[5] }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p>No se encontraron productos.</p>
+{% endif %}
+{% endblock %}

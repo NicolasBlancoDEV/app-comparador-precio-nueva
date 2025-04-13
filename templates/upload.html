@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>Subir Producto</h2>
-<form method="POST" action="/upload" enctype="multipart/form-data" class="mt-4" onsubmit="formatPrice()">
+<form method="POST" action="/upload" class="mt-4" onsubmit="formatPrice()">
     <div class="mb-3">
         <label for="name" class="form-label">Nombre del Producto</label>
         <input type="text" class="form-control" id="name" name="name" required>
@@ -19,10 +19,6 @@
         <label for="place" class="form-label">Lugar (Tienda)</label>
         <input type="text" class="form-control" id="place" name="place" required>
     </div>
-    <div class="mb-3">
-        <label for="image" class="form-label">Foto del Producto</label>
-        <input type="file" class="form-control" id="image" name="image" accept=".png,.jpg,.jpeg" required>
-    </div>
     <button type="submit" class="btn btn-primary">Subir</button>
 </form>
 
@@ -30,9 +26,7 @@
 function formatPrice() {
     let priceInput = document.getElementById('price');
     let price = priceInput.value;
-    // Reemplazar coma por punto y eliminar cualquier carácter no numérico (excepto punto)
     price = price.replace(',', '.').replace(/[^\d.]/g, '');
-    // Asegurarse de que tenga dos decimales
     price = parseFloat(price).toFixed(2);
     if (isNaN(price)) {
         alert('Por favor, ingresa un precio válido.');
