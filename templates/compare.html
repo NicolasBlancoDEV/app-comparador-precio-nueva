@@ -24,7 +24,7 @@
                     <div class="card-body">
                         <h5 class="card-title">{{ product[0] }} - {{ product[1] }}</h5>
                         <p class="card-text">
-                            Precio: ${{ product[2] }}<br>
+                            Precio: ${{ product[2]|float|format_price }}<br>
                             Lugar: {{ product[3] }}<br>
                             Fecha: {{ product[5] }}
                         </p>
@@ -35,3 +35,7 @@
     </div>
 {% endif %}
 {% endblock %}
+
+{% macro format_price(value) %}
+    {{ "{:,.2f}".format(value).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+{% endmacro %}

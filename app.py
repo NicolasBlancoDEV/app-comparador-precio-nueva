@@ -66,6 +66,15 @@ def upload():
             flash('Por favor, completa todos los campos.')
             return redirect(url_for('upload'))
 
+        # Validar y convertir el precio
+        try:
+            price = float(price)
+            if price < 0:
+                raise ValueError("El precio no puede ser negativo")
+        except ValueError:
+            flash('Por favor, ingresa un precio válido (número positivo).')
+            return redirect(url_for('upload'))
+
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -81,7 +90,7 @@ def upload():
                 with sqlite3.connect(DATABASE) as conn:
                     c = conn.cursor()
                     c.execute('INSERT INTO products (name, brand, price, place, image_path, upload_date) VALUES (?, ?, ?, ?, ?, ?)',
-                              (name, brand, float(price), place, file_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                              (name, brand, price, place, file_path, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                     conn.commit()
                 flash('Producto subido exitosamente!')
                 print("Producto guardado en la base de datos")

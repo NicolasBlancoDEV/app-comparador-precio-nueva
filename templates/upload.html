@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>Subir Producto</h2>
-<form method="POST" action="/upload" enctype="multipart/form-data" class="mt-4">
+<form method="POST" action="/upload" enctype="multipart/form-data" class="mt-4" onsubmit="formatPrice()">
     <div class="mb-3">
         <label for="name" class="form-label">Nombre del Producto</label>
         <input type="text" class="form-control" id="name" name="name" required>
@@ -12,8 +12,8 @@
         <input type="text" class="form-control" id="brand" name="brand" required>
     </div>
     <div class="mb-3">
-        <label for="price" class="form-label">Precio</label>
-        <input type="number" step="0.01" class="form-control" id="price" name="price" required>
+        <label for="price" class="form-label">Precio (en pesos argentinos)</label>
+        <input type="text" class="form-control" id="price" name="price" required placeholder="Ej: 1500 o 1,500">
     </div>
     <div class="mb-3">
         <label for="place" class="form-label">Lugar (Tienda)</label>
@@ -25,4 +25,21 @@
     </div>
     <button type="submit" class="btn btn-primary">Subir</button>
 </form>
+
+<script>
+function formatPrice() {
+    let priceInput = document.getElementById('price');
+    let price = priceInput.value;
+    // Reemplazar coma por punto y eliminar cualquier carácter no numérico (excepto punto)
+    price = price.replace(',', '.').replace(/[^\d.]/g, '');
+    // Asegurarse de que tenga dos decimales
+    price = parseFloat(price).toFixed(2);
+    if (isNaN(price)) {
+        alert('Por favor, ingresa un precio válido.');
+        return false;
+    }
+    priceInput.value = price;
+    return true;
+}
+</script>
 {% endblock %}
