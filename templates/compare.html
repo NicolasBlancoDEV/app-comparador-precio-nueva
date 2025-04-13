@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Comparar Precios</h2>
+<form method="POST" class="mt-4">
+    <div class="mb-3">
+        <label for="name" class="form-label">Nombre del Producto</label>
+        <input type="text" class="form-control" id="name" name="name" placeholder="Ej: Mayonesa">
+    </div>
+    <div class="mb-3">
+        <label for="brand" class="form-label">Marca</label>
+        <input type="text" class="form-control" id="brand" name="brand" placeholder="Ej: Hellmann's">
+    </div>
+    <button type="submit" class="btn btn-primary">Buscar</button>
+</form>
+
+{% if products %}
+    <h3 class="mt-5">Resultados</h3>
+    <div class="row">
+        {% for product in products %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <img src="{{ url_for('static', filename=product[4].split('static/')[1]) }}" class="card-img-top" alt="{{ product[0] }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product[0] }} - {{ product[1] }}</h5>
+                        <p class="card-text">
+                            Precio: ${{ product[2] }}<br>
+                            Lugar: {{ product[3] }}<br>
+                            Fecha: {{ product[5] }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}
