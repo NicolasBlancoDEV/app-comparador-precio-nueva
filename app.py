@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response
 import sqlite3
 import os
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+import secrets
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
@@ -70,12 +71,20 @@ def init_db():
                 password TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE
             )''')
-            # Tabla de mensajes del chat (modificada para usar user_id)
+            # Tabla de mensajes del chat
             c.execute('''CREATE TABLE IF NOT EXISTS chat_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 message TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )''')
+            # Tabla para tokens de recuperación de contraseña
+            c.execute('''CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token TEXT NOT NULL,
+                expiry TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
             conn.commit()
@@ -125,9 +134,14 @@ def register():
 # Inicio de sesión
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Obtener datos de las cookies si existen
+    saved_username = request.cookies.get('username', '')
+    saved_password_hash = request.cookies.get('password_hash', '')
+
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        remember = request.form.get('remember') == 'on'  # Checkbox para recordar
 
         try:
             with get_db_connection() as conn:
@@ -137,8 +151,21 @@ def login():
                 if user and check_password_hash(user[2], password):
                     user_obj = User(user[0], user[1], user[3])
                     login_user(user_obj)
+
+                    # Crear respuesta
+                    response = make_response(redirect(url_for('index')))
+                    
+                    # Si el usuario marcó "recordar", guardar en cookies
+                    if remember:
+                        response.set_cookie('username', username, max_age=30*24*60*60)  # 30 días
+                        response.set_cookie('password_hash', user[2], max_age=30*24*60*60)  # Guardamos el hash, no la contraseña
+                    else:
+                        # Si no marcó "recordar", eliminar cookies
+                        response.set_cookie('username', '', expires=0)
+                        response.set_cookie('password_hash', '', expires=0)
+
                     flash('Inicio de sesión exitoso.')
-                    return redirect(url_for('index'))
+                    return response
                 else:
                     flash('Nombre de usuario o contraseña incorrectos.')
                     return redirect(url_for('login'))
@@ -147,15 +174,19 @@ def login():
             print(f"Error al iniciar sesión: {e}")
             return redirect(url_for('login'))
 
-    return render_template('login.html')
+    return render_template('login.html', saved_username=saved_username, saved_password_hash=saved_password_hash)
 
 # Cierre de sesión
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
+    # Crear respuesta para eliminar cookies
+    response = make_response(redirect(url_for('index')))
+    response.set_cookie('username', '', expires=0)
+    response.set_cookie('password_hash', '', expires=0)
     flash('Has cerrado sesión.')
-    return redirect(url_for('index'))
+    return response
 
 # Página principal (productos ordenados por fecha)
 @app.route('/')
@@ -275,6 +306,77 @@ def chat():
         print(f"Error al cargar los mensajes: {e}")
         messages = []
     return render_template('chat.html', messages=messages)
+
+# Solicitar recuperación de contraseña
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email']
+
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute('SELECT id, username FROM users WHERE email = ?', (email,))
+                user = c.fetchone()
+                if user:
+                    # Generar un token de recuperación
+                    token = secrets.token_urlsafe(32)
+                    expiry = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')  # Token válido por 1 hora
+                    c.execute('INSERT INTO password_reset_tokens (user_id, token, expiry) VALUES (?, ?, ?)',
+                              (user[0], token, expiry))
+                    conn.commit()
+
+                    # En un entorno real, enviarías un correo aquí con el enlace
+                    # Por ahora, mostramos el enlace directamente (para desarrollo)
+                    reset_link = url_for('reset_password', token=token, _external=True)
+                    flash(f'Enlace de recuperación (simulado): {reset_link}')
+                else:
+                    flash('No se encontró un usuario con ese email.')
+                return redirect(url_for('forgot_password'))
+        except sqlite3.Error as e:
+            flash(f'Error al procesar la solicitud: {e}')
+            print(f"Error al procesar la solicitud: {e}")
+            return redirect(url_for('forgot_password'))
+
+    return render_template('forgot_password.html')
+
+# Restablecer contraseña
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('SELECT user_id, expiry FROM password_reset_tokens WHERE token = ?', (token,))
+            token_data = c.fetchone()
+            if not token_data:
+                flash('El enlace de recuperación es inválido.')
+                return redirect(url_for('login'))
+
+            expiry = datetime.fromtimestamp(token_data[1])
+            if datetime.now() > expiry:
+                flash('El enlace de recuperación ha expirado.')
+                c.execute('DELETE FROM password_reset_tokens WHERE token = ?', (token,))
+                conn.commit()
+                return redirect(url_for('login'))
+
+            if request.method == 'POST':
+                new_password = request.form['password']
+                if not new_password:
+                    flash('Por favor, ingresa una nueva contraseña.')
+                    return redirect(url_for('reset_password', token=token))
+
+                hashed_password = generate_password_hash(new_password)
+                c.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, token_data[0]))
+                c.execute('DELETE FROM password_reset_tokens WHERE token = ?', (token,))
+                conn.commit()
+                flash('Contraseña restablecida exitosamente. Por favor, inicia sesión.')
+                return redirect(url_for('login'))
+
+            return render_template('reset_password.html', token=token)
+    except (sqlite3.Error, ValueError) as e:
+        flash(f'Error al procesar el restablecimiento: {e}')
+        print(f"Error al procesar el restablecimiento: {e}")
+        return redirect(url_for('login'))
 
 # Inicializar la app
 with app.app_context():
