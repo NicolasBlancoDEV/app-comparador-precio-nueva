@@ -27,10 +27,12 @@ login_manager.login_view = 'login'
 # Configurar la zona horaria de Argentina (UTC-3)
 argentina_tz = pytz.timezone('America/Argentina/Buenos_Aires')
 
-# Procesador de contexto para pasar admin_username a todas las plantillas
+# Procesador de contexto para pasar admin_username y el modo oscuro a todas las plantillas
 @app.context_processor
 def utility_processor():
-    return dict(admin_username=ADMIN_USERNAME)
+    # Obtener el modo oscuro de la sesión, por defecto es 'light'
+    theme = session.get('theme', 'light')
+    return dict(admin_username=ADMIN_USERNAME, theme=theme)
 
 # Modelo de usuario para Flask-Login
 class User(UserMixin):
@@ -88,20 +90,25 @@ def init_db():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
+            # Tabla de productos (agregamos user_id para rastrear quién subió el producto)
             c.execute('''CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 brand TEXT NOT NULL,
                 price REAL NOT NULL,
                 place TEXT NOT NULL,
-                upload_date TEXT NOT NULL
+                upload_date TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
+            # Tabla de usuarios
             c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
                 password TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE
             )''')
+            # Tabla de mensajes del chat
             c.execute('''CREATE TABLE IF NOT EXISTS chat_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -109,6 +116,7 @@ def init_db():
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
+            # Tabla para tokens de recuperación de contraseña
             c.execute('''CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -120,6 +128,15 @@ def init_db():
         print("Base de datos inicializada correctamente")
     except sqlite3.Error as e:
         print(f"Error al crear la base de datos: {e}")
+
+# Ruta para alternar entre modo claro y oscuro
+@app.route('/toggle_theme')
+def toggle_theme():
+    # Alternar entre 'light' y 'dark'
+    current_theme = session.get('theme', 'light')
+    session['theme'] = 'dark' if current_theme == 'light' else 'light'
+    # Redirigir a la página anterior (o a la página principal si no hay referrer)
+    return redirect(request.referrer or url_for('index'))
 
 # Servir el manifest.json
 @app.route('/manifest.json')
@@ -206,6 +223,7 @@ def login():
 def logout():
     logout_user()
     session.pop('cart', None)
+    session.pop('theme', None)  # Limpiar la preferencia de tema al cerrar sesión
     response = make_response(redirect(url_for('index')))
     response.set_cookie('username', '', expires=0)
     response.set_cookie('password_hash', '', expires=0)
@@ -218,9 +236,9 @@ def index():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute('SELECT id, name, brand, price, place, upload_date FROM products ORDER BY upload_date DESC')
+            c.execute('SELECT id, name, brand, price, place, upload_date, user_id FROM products ORDER BY upload_date DESC')
             products = c.fetchall()
-            products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
+            products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5]), p[6]) for p in products]
     except sqlite3.Error as e:
         flash(f'Error al cargar productos: {e}')
         print(f"Error al cargar productos: {e}")
@@ -235,6 +253,7 @@ def upload():
         brand = request.form['brand']
         price = request.form['price']
         place = request.form['place']
+        user_id = current_user.id if current_user.is_authenticated else None
 
         if not (name and brand and price and place):
             flash('Por favor, completa todos los campos.')
@@ -251,8 +270,8 @@ def upload():
         try:
             with get_db_connection() as conn:
                 c = conn.cursor()
-                c.execute('INSERT INTO products (name, brand, price, place, upload_date) VALUES (?, ?, ?, ?, ?)',
-                          (name, brand, price, place, get_current_time()))
+                c.execute('INSERT INTO products (name, brand, price, place, upload_date, user_id) VALUES (?, ?, ?, ?, ?, ?)',
+                          (name, brand, price, place, get_current_time(), user_id))
                 conn.commit()
             flash('Producto subido exitosamente!')
             print("Producto guardado en la base de datos")
@@ -264,6 +283,61 @@ def upload():
 
     return render_template('upload.html')
 
+# Editar producto
+@app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
+@login_required
+def edit_product(product_id):
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('SELECT id, name, brand, price, place, user_id FROM products WHERE id = ?', (product_id,))
+            product = c.fetchone()
+            if not product:
+                flash('Producto no encontrado.')
+                return redirect(url_for('index'))
+
+            # Verificar que el usuario actual sea el que subió el producto
+            if product[5] != current_user.id:
+                flash('No tienes permiso para editar este producto.')
+                return redirect(url_for('index'))
+
+            if request.method == 'POST':
+                name = request.form['name']
+                brand = request.form['brand']
+                price = request.form['price']
+                place = request.form['place']
+
+                if not (name and brand and price and place):
+                    flash('Por favor, completa todos los campos.')
+                    return redirect(url_for('edit_product', product_id=product_id))
+
+                try:
+                    price = float(price)
+                    if price < 0:
+                        raise ValueError("El precio no puede ser negativo")
+                except ValueError:
+                    flash('Por favor, ingresa un precio válido (número positivo).')
+                    return redirect(url_for('edit_product', product_id=product_id))
+
+                try:
+                    c.execute('''UPDATE products 
+                                 SET name = ?, brand = ?, price = ?, place = ? 
+                                 WHERE id = ?''',
+                              (name, brand, price, place, product_id))
+                    conn.commit()
+                    flash('Producto actualizado exitosamente!')
+                    return redirect(url_for('index'))
+                except sqlite3.Error as e:
+                    flash(f'Error al actualizar el producto: {e}')
+                    print(f"Error al actualizar el producto: {e}")
+                    return redirect(url_for('edit_product', product_id=product_id))
+
+            return render_template('edit_product.html', product=product)
+    except sqlite3.Error as e:
+        flash(f'Error al cargar el producto: {e}')
+        print(f"Error al cargar el producto: {e}")
+        return redirect(url_for('index'))
+
 # Filtrar productos
 @app.route('/filter', methods=['GET', 'POST'])
 def filter_products():
@@ -274,13 +348,13 @@ def filter_products():
         try:
             with get_db_connection() as conn:
                 c = conn.cursor()
-                query = '''SELECT id, name, brand, price, place, upload_date 
+                query = '''SELECT id, name, brand, price, place, upload_date, user_id 
                           FROM products 
                           WHERE name LIKE ? OR brand LIKE ? OR place LIKE ? 
                           ORDER BY upload_date DESC'''
                 c.execute(query, (f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'))
                 products = c.fetchall()
-                products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
+                products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5]), p[6]) for p in products]
         except sqlite3.Error as e:
             flash(f'Error al buscar productos: {e}')
             print(f"Error al buscar productos: {e}")
@@ -288,9 +362,9 @@ def filter_products():
         try:
             with get_db_connection() as conn:
                 c = conn.cursor()
-                c.execute('SELECT id, name, brand, price, place, upload_date FROM products ORDER BY upload_date DESC')
+                c.execute('SELECT id, name, brand, price, place, upload_date, user_id FROM products ORDER BY upload_date DESC')
                 products = c.fetchall()
-                products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5])) for p in products]
+                products = [(p[0], p[1], p[2], p[3], p[4], to_argentina_time(p[5]), p[6]) for p in products]
         except sqlite3.Error as e:
             flash(f'Error al cargar productos: {e}')
             print(f"Error al cargar productos: {e}")

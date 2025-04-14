@@ -1,34 +1,51 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>Filtrar Productos</h2>
-<form method="POST" class="mb-4">
-    <div class="input-group">
-        <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar" value="{{ search_query }}">
-        <button type="submit" class="btn btn-primary">Buscar</button>
-    </div>
-</form>
-{% if products %}
-    <div class="row">
-        {% for product in products %}
-            <div class="col-md-4 mb-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ product[1] }} ({{ product[2] }})</h5>
-                        <p class="card-text">
-                            <strong>Precio:</strong> {{ product[3] | format_price }}<br>
-                            <strong>Lugar:</strong> {{ product[4] }}<br>
-                            <strong>Fecha:</strong> {{ product[5] }}
-                        </p>
-                        <form method="POST" action="{{ url_for('add_to_cart', product_id=product[0]) }}">
-                            <button type="submit" class="btn btn-primary btn-sm">Agregar al carrito</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        {% endfor %}
-    </div>
-{% else %}
-    <p>No se encontraron productos.</p>
-{% endif %}
+<div class="container">
+    <h1>Filtrar Productos</h1>
+    <form method="post" class="mb-4">
+        <div class="input-group">
+            <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar..." value="{{ search_query }}">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+        </div>
+    </form>
+
+    {% if products %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Marca</th>
+                    <th>Precio</th>
+                    <th>Lugar</th>
+                    <th>Fecha de Subida</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                    <tr>
+                        <td>{{ product[1] }}</td>
+                        <td>{{ product[2] }}</td>
+                        <td>{{ product[3] | format_price }}</td>
+                        <td>{{ product[4] }}</td>
+                        <td>{{ product[5] }}</td>
+                        <td>
+                            <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-primary">Añadir al Carrito</button>
+                            </form>
+                            {% if current_user.is_authenticated and product[6] == current_user.id %}
+                                <a href="{{ url_for('edit_product', product_id=product[0]) }}" class="btn btn-sm btn-warning" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No se encontraron productos.</p>
+    {% endif %}
+</div>
 {% endblock %}
