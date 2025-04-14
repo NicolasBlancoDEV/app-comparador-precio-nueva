@@ -83,7 +83,7 @@ def to_argentina_time(timestamp):
     except ValueError:
         return timestamp
 
-# Crear las tablas
+# Crear las tablas y manejar migraciones
 def init_db():
     try:
         with get_db_connection() as conn:
@@ -95,10 +95,33 @@ def init_db():
                 brand TEXT NOT NULL,
                 price REAL NOT NULL,
                 place TEXT NOT NULL,
-                upload_date TEXT NOT NULL,
-                user_id INTEGER NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                upload_date TEXT NOT NULL
             )''')
+            # Verificar si la columna user_id existe; si no, agregarla
+            c.execute("PRAGMA table_info(products)")
+            columns = [col[1] for col in c.fetchall()]
+            if 'user_id' not in columns:
+                c.execute('ALTER TABLE products ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1')
+                c.execute('''UPDATE products SET user_id = 1 WHERE user_id IS NULL''')
+                print("Columna user_id agregada a la tabla products con valor por defecto 1")
+            # Agregar la restricción de clave foránea (esto podría fallar si ya hay datos, así que lo manejamos con cuidado)
+            try:
+                c.execute('''CREATE TABLE IF NOT EXISTS products_temp (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    brand TEXT NOT NULL,
+                    price REAL NOT NULL,
+                    place TEXT NOT NULL,
+                    upload_date TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )''')
+                c.execute('''INSERT INTO products_temp (id, name, brand, price, place, upload_date, user_id)
+                             SELECT id, name, brand, price, place, upload_date, user_id FROM products''')
+                c.execute('DROP TABLE products')
+                c.execute('ALTER TABLE products_temp RENAME TO products')
+            except sqlite3.Error as e:
+                print(f"Error al agregar la restricción de clave foránea: {e}")
             # Tabla de usuarios
             c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -522,7 +545,7 @@ def download_db():
     except Exception as e:
         flash(f'Error al descargar la base de datos: {e}')
         print(f"Error al descargar la base de datos: {e}")
-        return redirect(url_for('index'))
+        return redirect(url(),'index')
 
 # Subir una nueva base de datos
 @app.route('/upload_db', methods=['GET', 'POST'])
