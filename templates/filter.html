@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="container">
-    <h1>Filtrar Productos</h1>
+    <h1 class="text-center mb-4">Filtrar Productos</h1>
     <form method="post" class="mb-4">
         <div class="input-group">
             <input type="text" class="form-control" name="search" placeholder="Buscar por nombre, marca o lugar..." value="{{ search_query }}">
@@ -11,36 +11,21 @@
     </form>
 
     {% if products %}
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>Marca</th>
-                    <th>Precio</th>
-                    <th>Lugar</th>
-                    <th>Fecha de Subida</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for product in products %}
-                    <tr>
-                        <td>{{ product[1] }}</td>
-                        <td>{{ product[2] }}</td>
-                        <td>{{ product[3] | format_price }}</td>
-                        <td>{{ product[4] }}</td>
-                        <td>{{ product[5] }}</td>
-                        <td>
-                            <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-primary">Añadir al Carrito</button>
-                            </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <ul class="list-group product-list">
+            {% for product in products %}
+                <li class="list-group-item d-flex align-items-center">
+                    <div class="product-info">
+                        <span class="product-name">{{ product[1] }}</span>
+                        <span class="product-brand">{{ product[2] }}</span>
+                        <span class="product-price">{{ product[3] | format_price }}</span>
+                        <span class="product-place">{{ product[4] }}</span>
+                        <span class="product-date">{{ product[5] }}</span>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
     {% else %}
-        <p>No se encontraron productos.</p>
+        <p class="text-center">No se encontraron productos.</p>
     {% endif %}
 </div>
 {% endblock %}

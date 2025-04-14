@@ -11,11 +11,12 @@ body {
 }
 
 /* Ajuste para las tablas (por si se usan en otras páginas) */
-.table th, .table td {
+.table th,
+.table td {
     vertical-align: middle;
 }
 
-/* Estilos para las cards */
+/* Estilos para las cards (usadas en index.html) */
 .card {
     border: none;
     border-radius: 15px;
@@ -60,8 +61,70 @@ body {
     border-color: #004085;
 }
 
+/* Estilos para el listado de productos en filter.html */
+.product-list {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.list-group-item {
+    border: none;
+    border-bottom: 1px solid #e9ecef;
+    padding: 10px 15px;
+    background-color: #ffffff;
+    transition: background-color 0.2s;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.product-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+}
+
+.product-name {
+    font-weight: 600;
+    color: #2c3e50;
+    flex: 1 1 20%;
+    min-width: 80px;
+}
+
+.product-brand {
+    font-weight: 500;
+    color: #6c757d;
+    flex: 1 1 20%;
+    min-width: 60px;
+}
+
+.product-price {
+    font-weight: 500;
+    color: #007bff;
+    flex: 1 1 20%;
+    min-width: 80px;
+}
+
+.product-place {
+    font-weight: 400;
+    color: #495057;
+    flex: 1 1 15%;
+    min-width: 50px;
+}
+
+.product-date {
+    font-weight: 400;
+    color: #6c757d;
+    flex: 1 1 25%;
+    min-width: 100px;
+}
+
 /* Ajustes responsivos */
 @media (max-width: 576px) {
+    /* Ajustes para las cards en index.html */
     .card {
         margin: 0 auto;
         max-width: 90%;
@@ -86,5 +149,41 @@ body {
 
     h1 {
         font-size: 1.5rem;
+    }
+
+    /* Ajustes para el listado en filter.html */
+    .product-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    .product-name,
+    .product-brand,
+    .product-price,
+    .product-place,
+    .product-date {
+        flex: none;
+        min-width: 0;
+        font-size: 0.85rem;
+    }
+
+    .product-date {
+        font-size: 0.75rem;
+        color: #adb5bd;
+    }
+
+    .input-group {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .input-group .form-control,
+    .input-group .btn {
+        width: 100%;
+    }
+
+    .list-group-item {
+        padding: 8px 10px;
     }
 }
