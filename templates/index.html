@@ -2,38 +2,30 @@
 
 {% block content %}
 <div class="container">
-    <h1>Lista de Productos</h1>
+    <h1 class="text-center mb-4">Lista de Productos</h1>
     {% if products %}
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>Marca</th>
-                    <th>Precio</th>
-                    <th>Lugar</th>
-                    <th>Fecha de Subida</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for product in products %}
-                    <tr>
-                        <td>{{ product[1] }}</td>
-                        <td>{{ product[2] }}</td>
-                        <td>{{ product[3] | format_price }}</td>
-                        <td>{{ product[4] }}</td>
-                        <td>{{ product[5] }}</td>
-                        <td>
-                            <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-primary">Añadir al Carrito</button>
+        <div class="row justify-content-center">
+            {% for product in products %}
+                <div class="col-12 col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ product[1] }}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">{{ product[2] }}</h6>
+                            <p class="card-text">
+                                <strong>Precio:</strong> {{ product[3] | format_price }}<br>
+                                <strong>Lugar:</strong> {{ product[4] }}<br>
+                                <strong>Fecha de Subida:</strong> {{ product[5] }}
+                            </p>
+                            <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-primary btn-sm w-100">Añadir al Carrito</button>
                             </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
     {% else %}
-        <p>No hay productos disponibles.</p>
+        <p class="text-center">No hay productos disponibles.</p>
     {% endif %}
 </div>
 {% endblock %}
