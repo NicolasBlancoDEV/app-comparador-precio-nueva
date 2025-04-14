@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comparador de Precios</title>
-    <!-- Usar Bootswatch Flatly para modo claro y Darkly para modo oscuro -->
-    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/flatly/bootstrap.min.css" rel="stylesheet" id="theme-stylesheet">
+    <!-- Usar Bootswatch Flatly -->
+    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/flatly/bootstrap.min.css" rel="stylesheet">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
@@ -16,7 +16,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
 </head>
-<body class="{{ 'dark-mode' if theme == 'dark' else 'light-mode' }}">
+<body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="/">Comparador de Precios</a>
@@ -35,13 +35,6 @@
                     {% endif %}
                 </div>
                 <div class="navbar-nav">
-                    <!-- Interruptor para modo oscuro -->
-                    <div class="nav-item form-check form-switch me-3">
-                        <input class="form-check-input" type="checkbox" id="themeSwitch" onchange="toggleTheme()" {% if theme == 'dark' %}checked{% endif %}>
-                        <label class="form-check-label nav-link text-white" for="themeSwitch">
-                            {% if theme == 'dark' %}Modo Claro{% else %}Modo Oscuro{% endif %}
-                        </label>
-                    </div>
                     {% if current_user.is_authenticated %}
                         <span class="nav-link">Hola, {{ current_user.username }}</span>
                         <a class="nav-link" href="{{ url_for('logout') }}">Cerrar Sesión</a>
@@ -75,26 +68,6 @@
                     .then(reg => console.log('Service Worker registrado'))
                     .catch(err => console.log('Error:', err));
             });
-        }
-
-        // Función para alternar el tema
-        function toggleTheme() {
-            fetch('/toggle_theme')
-                .then(response => {
-                    if (response.ok) {
-                        // Cambiar la hoja de estilo según el tema
-                        const stylesheet = document.getElementById('theme-stylesheet');
-                        const currentTheme = stylesheet.href.includes('flatly') ? 'light' : 'dark';
-                        if (currentTheme === 'light') {
-                            stylesheet.href = 'https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/darkly/bootstrap.min.css';
-                        } else {
-                            stylesheet.href = 'https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/flatly/bootstrap.min.css';
-                        }
-                        // Actualizar el texto del interruptor
-                        const label = document.querySelector('label[for="themeSwitch"]');
-                        label.textContent = currentTheme === 'light' ? 'Modo Claro' : 'Modo Oscuro';
-                    }
-                });
         }
     </script>
 </body>

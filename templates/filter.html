@@ -34,11 +34,6 @@
                             <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" style="display:inline;">
                                 <button type="submit" class="btn btn-sm btn-primary">Añadir al Carrito</button>
                             </form>
-                            {% if current_user.is_authenticated and product[6] == current_user.id %}
-                                <a href="{{ url_for('edit_product', product_id=product[0]) }}" class="btn btn-sm btn-warning" title="Editar">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                            {% endif %}
                         </td>
                     </tr>
                 {% endfor %}
