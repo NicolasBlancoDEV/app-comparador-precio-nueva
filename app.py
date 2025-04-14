@@ -17,7 +17,7 @@ else:
     DATABASE = os.path.join(os.path.dirname(__file__), 'database.db')
 
 # Definir el usuario administrador desde una variable de entorno
-ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'tu_usuario')  # Por defecto, "tu_usuario" si no está definida
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'tu_usuario')
 
 # Configurar Flask-Login
 login_manager = LoginManager()
@@ -27,7 +27,10 @@ login_manager.login_view = 'login'
 # Configurar la zona horaria de Argentina (UTC-3)
 argentina_tz = pytz.timezone('America/Argentina/Buenos_Aires')
 
-# Resto del código sigue igual...
+# Procesador de contexto para pasar admin_username a todas las plantillas
+@app.context_processor
+def utility_processor():
+    return dict(admin_username=ADMIN_USERNAME)
 
 # Modelo de usuario para Flask-Login
 class User(UserMixin):
@@ -58,7 +61,6 @@ def format_price(value):
 # Conectar a la base de datos SQLite
 def get_db_connection():
     try:
-        # Asegurarse de que el directorio exista (por si DATABASE incluye subdirectorios)
         db_dir = os.path.dirname(DATABASE)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir)
@@ -86,7 +88,6 @@ def init_db():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            # Tabla de productos
             c.execute('''CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -95,14 +96,12 @@ def init_db():
                 place TEXT NOT NULL,
                 upload_date TEXT NOT NULL
             )''')
-            # Tabla de usuarios
             c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
                 password TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE
             )''')
-            # Tabla de mensajes del chat
             c.execute('''CREATE TABLE IF NOT EXISTS chat_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -110,7 +109,6 @@ def init_db():
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )''')
-            # Tabla para tokens de recuperación de contraseña
             c.execute('''CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -207,7 +205,6 @@ def login():
 @login_required
 def logout():
     logout_user()
-    # Limpiar el carrito al cerrar sesión
     session.pop('cart', None)
     response = make_response(redirect(url_for('index')))
     response.set_cookie('username', '', expires=0)
@@ -419,11 +416,9 @@ def add_to_cart(product_id):
                 flash('Producto no encontrado.')
                 return redirect(request.referrer or url_for('index'))
 
-            # Inicializar el carrito en la sesión si no existe
             if 'cart' not in session:
                 session['cart'] = []
 
-            # Agregar el producto al carrito
             session['cart'].append({
                 'id': product[0],
                 'name': product[1],
@@ -431,7 +426,7 @@ def add_to_cart(product_id):
                 'price': product[3],
                 'place': product[4]
             })
-            session.modified = True  # Marcar la sesión como modificada
+            session.modified = True
 
             flash(f'{product[1]} ({product[2]}) añadido al carrito.')
             return redirect(request.referrer or url_for('index'))
@@ -458,7 +453,6 @@ def clear_cart():
 @app.route('/download_db')
 @login_required
 def download_db():
-    # Restringir el acceso solo al usuario administrador
     if current_user.username != ADMIN_USERNAME:
         flash('No tienes permiso para descargar la base de datos.')
         return redirect(url_for('index'))
@@ -478,7 +472,6 @@ def download_db():
 @app.route('/upload_db', methods=['GET', 'POST'])
 @login_required
 def upload_db():
-    # Restringir el acceso solo al usuario administrador
     if current_user.username != ADMIN_USERNAME:
         flash('No tienes permiso para subir una base de datos.')
         return redirect(url_for('index'))
@@ -510,6 +503,7 @@ def upload_db():
             return redirect(url_for('upload_db'))
 
     return render_template('upload_db.html')
+
 # Inicializar la app
 with app.app_context():
     init_db()

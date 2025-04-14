@@ -29,7 +29,7 @@
                     <a class="nav-link" href="{{ url_for('filter_products') }}">Filtrar Productos</a>
                     <a class="nav-link" href="{{ url_for('chat') }}">Chat</a>
                     <a class="nav-link" href="{{ url_for('cart') }}">Carrito</a>
-                    {% if current_user.is_authenticated and current_user.username == 'tu_usuario' %}
+                    {% if current_user.is_authenticated and current_user.username == admin_username %}
                         <a class="nav-link" href="{{ url_for('download_db') }}">Descargar BD</a>
                         <a class="nav-link" href="{{ url_for('upload_db') }}">Subir BD</a>
                     {% endif %}
