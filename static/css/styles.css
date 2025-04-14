@@ -122,6 +122,11 @@ body {
     min-width: 100px;
 }
 
+/* Estilo para el ícono de lápiz */
+.bi-pencil {
+    font-size: 1rem;
+}
+
 /* Ajustes responsivos */
 @media (max-width: 576px) {
     /* Ajustes para las cards en index.html */
@@ -185,5 +190,9 @@ body {
 
     .list-group-item {
         padding: 8px 10px;
+    }
+
+    .bi-pencil {
+        font-size: 0.9rem;
     }
 }

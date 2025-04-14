@@ -16,9 +16,16 @@
                                 <strong>Lugar:</strong> {{ product[4] }}<br>
                                 <strong>Fecha de Subida:</strong> {{ product[5] }}
                             </p>
-                            <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-primary btn-sm w-100">Añadir al Carrito</button>
-                            </form>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <form action="{{ url_for('add_to_cart', product_id=product[0]) }}" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-primary btn-sm">Añadir al Carrito</button>
+                                </form>
+                                {% if current_user.is_authenticated and (product[6] == current_user.id or current_user.username == admin_username) %}
+                                    <a href="{{ url_for('edit_product', product_id=product[0]) }}" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>

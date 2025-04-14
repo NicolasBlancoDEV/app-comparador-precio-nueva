@@ -21,6 +21,11 @@
                         <span class="product-place">{{ product[4] }}</span>
                         <span class="product-date">{{ product[5] }}</span>
                     </div>
+                    {% if current_user.is_authenticated and (product[6] == current_user.id or current_user.username == admin_username) %}
+                        <a href="{{ url_for('edit_product', product_id=product[0]) }}" class="btn btn-outline-secondary btn-sm ms-auto">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>
