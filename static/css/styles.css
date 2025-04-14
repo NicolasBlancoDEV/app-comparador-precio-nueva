@@ -1,7 +1,7 @@
 /* Estilos generales */
 body {
     font-family: 'Roboto', sans-serif;
-    background-color: #f8f9fa;
+    background-color: #D4C9BE;
     color: #212529;
 }
 
@@ -42,7 +42,7 @@ body {
 
 .card-text {
     font-size: 0.9rem;
-    color: #6c757d;
+    color: #123458;
 }
 
 .card-text strong {
